@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guaranteed Scheduling - Dashboard</title>
+    <style>
+        /* Variables de Tema Minimalista/Tech */
+        :root {
+            --bg-main: #f4f7f6;
+            --bg-card: #ffffff;
+            --text-dark: #111827;
+            --text-muted: #6b7280;
+            --primary: #000000;
+            --accent: #E5A910; /* Mostaza */
+            --cpu-active: #0047AB; /* Azul Cobalto */
+            --success: #10b981;
+            --border: #e5e7eb;
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
+        
+        body { background-color: var(--bg-main); color: var(--text-dark); padding: 2rem; }
+        
+        .header { text-align: center; margin-bottom: 2rem; }
+        .header h1 { font-family: 'Playfair Display', serif; font-size: 2.5rem; text-transform: uppercase; letter-spacing: 2px; }
+        .header p { color: var(--text-muted); margin-top: 0.5rem; }
+
+        .dashboard { display: grid; grid-template-columns: 300px 1fr; gap: 2rem; max-width: 1200px; margin: 0 auto; }
+        
+        .panel { background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        .panel h2 { font-size: 1.1rem; margin-bottom: 1.2rem; border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; display: inline-block; }
+
+        /* Controles */
+        .control-group { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+        input { padding: 0.8rem; border: 1px solid var(--border); border-radius: 6px; outline: none; transition: border 0.3s; }
+        input:focus { border-color: var(--primary); }
+        
+        button { padding: 0.8rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; background: var(--primary); color: white; margin-top: 0.5rem; }
+        button:hover { background: #333; transform: translateY(-1px); }
+        button.btn-accent { background: var(--accent); color: var(--text-dark); }
+        button.btn-accent:hover { background: #d49a0e; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .speed-control { display: flex; gap: 0.5rem; margin-top: 1rem; }
+        .speed-btn { flex: 1; padding: 0.5rem; background: var(--bg-main); color: var(--text-dark); border: 1px solid var(--border); }
+        .speed-btn.active { background: var(--primary); color: white; }
+
+        /* Monitor CPU */
+        .cpu-status { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .cpu-core { display: flex; align-items: center; gap: 1rem; font-weight: bold; font-size: 1.2rem; }
+        .cpu-icon { width: 40px; height: 40px; background: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; transition: background 0.3s; }
+        .cpu-icon.processing { background: var(--cpu-active); box-shadow: 0 0 15px rgba(0, 71, 171, 0.4); }
+
+        /* Lista de Procesos */
+        .process-list { display: flex; flex-direction: column; gap: 1rem; }
+        .process-item { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; transition: all 0.3s; background: var(--bg-main); position: relative; overflow: hidden; }
+        .process-item.active { border-color: var(--cpu-active); background: white; box-shadow: 0 4px 12px rgba(0, 71, 171, 0.1); transform: translateX(5px); }
+        
+        .process-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+        .process-name { font-weight: bold; font-size: 1.1rem; }
+        .process-math { font-family: monospace; font-size: 0.9rem; background: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; color: #475569; }
+        
+        .progress-track { height: 12px; background: #e2e8f0; border-radius: 6px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .process-item.active .progress-fill { background: var(--cpu-active); }
+        .process-item.completed .progress-fill { background: var(--success); }
+
+        /* Terminal Log */
+        .terminal { background: #1e293b; color: #38bdf8; font-family: monospace; padding: 1rem; border-radius: 8px; height: 200px; overflow-y: auto; font-size: 0.9rem; line-height: 1.5; margin-top: 1.5rem; }
+        .terminal span.time { color: #94a3b8; }
+        .terminal span.target { color: var(--accent); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Guaranteed Scheduling</h1>
+        <p>Equipo 2 | Sistemas Operativos | Monitor de Asignación 1/n</p>
+    </div>
+
+    <div class="dashboard">
+        <!-- Panel Izquierdo: Controles -->
+        <div class="panel">
+            <h2>⚙️ Parámetros</h2>
+            <div class="control-group">
+                <input type="text" id="procName" placeholder="Nombre (Ej: Tarea A)">
+                <input type="number" id="procTime" placeholder="Ciclos requeridos (Ej: 10)" min="1">
+                <button onclick="agregarProceso()">+ Agregar Proceso</button>
+            </div>
+            
+            <div style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                <button id="btnStart" class="btn-accent" style="width: 100%;" onclick="toggleSimulacion()">▶ Iniciar Planificador</button>
+                <button onclick="reiniciar()" style="width: 100%; background: #ef4444; margin-top: 0.5rem;">↺ Reiniciar Todo</button>
+            </div>
+
+            <div class="speed-control">
+                <button class="speed-btn active" id="spd1" onclick="setSpeed(1000, 'spd1')">1x (Lento)</button>
+                <button class="speed-btn" id="spd2" onclick="setSpeed(250, 'spd2')">4x (Rápido)</button>
+            </div>
+        </div>
+
+        <!-- Panel Derecho: Monitor en vivo -->
+        <div class="panel">
+            <div class="cpu-status">
+                <div class="cpu-core">
+                    <div class="cpu-icon" id="cpuIcon">💻</div>
+                    <div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">ESTADO DEL PROCESADOR</div>
+                        <div id="cpuLabel">IDLE (Esperando procesos)</div>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">TIEMPO TOTAL CPU</div>
+                    <div style="font-size: 1.5rem; font-weight: bold; font-family: monospace;" id="totalTimeDisplay">0</div>
+                </div>
+            </div>
+
+            <div class="process-list" id="uiProcessList">
+                <!-- Procesos inyectados por JS -->
+            </div>
+
+            <div class="terminal" id="terminalLog">
+                <div>> Kernel iniciado. Algoritmo: Guaranteed Scheduling (1/n).</div>
+                <div>> Esperando carga de procesos...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let procesos = [];
+        let tiempoTotal = 0;
+        let intervalo = null;
+        let velocidad = 1000;
+        let corriendo = false;
+
+        function agregarProceso() {
+            const nombre = document.getElementById('procName').value || `P${procesos.length + 1}`;
+            const tiempo = parseInt(document.getElementById('procTime').value);
+
+            if (isNaN(tiempo) || tiempo <= 0) return alert("Ingresa un tiempo válido.");
+
+            procesos.push({
+                id: procesos.length,
+                nombre: nombre,
+                requerido: tiempo,
+                consumido: 0,
+                proporcion: 0,
+                completado: false
+            });
+
+            document.getElementById('procName').value = '';
+            document.getElementById('procTime').value = '';
+            
+            logTerminal(`[NUEVO] ${nombre} requiere ${tiempo} ciclos de CPU.`);
+            renderizarProcesos();
+        }
+
+        function setSpeed(ms, btnId) {
+            velocidad = ms;
+            document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(btnId).classList.add('active');
+            if (corriendo) {
+                clearInterval(intervalo);
+                intervalo = setInterval(tick, velocidad);
+            }
+        }
+
+        function toggleSimulacion() {
+            const activos = procesos.filter(p => !p.completado);
+            if (activos.length === 0) return alert("Agrega procesos sin completar.");
+
+            const btn = document.getElementById('btnStart');
+            if (corriendo) {
+                clearInterval(intervalo);
+                corriendo = false;
+                btn.innerHTML = "▶ Reanudar Planificador";
+                document.getElementById('cpuIcon').classList.remove('processing');
+                document.getElementById('cpuLabel').innerText = "PAUSADO";
+            } else {
+                corriendo = true;
+                btn.innerHTML = "⏸ Pausar";
+                document.getElementById('cpuIcon').classList.add('processing');
+                intervalo = setInterval(tick, velocidad);
+            }
+        }
+
+        function tick() {
+            let activos = procesos.filter(p => !p.completado);
+            
+            if (activos.length === 0) {
+                clearInterval(intervalo);
+                corriendo = false;
+                document.getElementById('btnStart').innerHTML = "▶ Iniciar Planificador";
+                document.getElementById('cpuIcon').classList.remove('processing');
+                document.getElementById('cpuLabel').innerText = "FINALIZADO";
+                logTerminal(`[SISTEMA] Todos los procesos completados.`);
+                return;
+            }
+
+            // Matemática del Guaranteed Scheduling
+            // Prometido = Tiempo Total / Número de procesos activos
+            let tiempoPrometido = (tiempoTotal === 0) ? 0 : (tiempoTotal / activos.length);
+            let menorProporcion = Infinity;
+            let procesoElegido = null;
+
+            activos.forEach(p => {
+                p.proporcion = tiempoTotal === 0 ? 0 : (p.consumido / tiempoPrometido);
+                if (p.proporcion < menorProporcion) {
+                    menorProporcion = p.proporcion;
+                    procesoElegido = p;
+                }
+            });
+
+            // Ejecución
+            procesoElegido.consumido += 1;
+            tiempoTotal += 1;
+
+            if (procesoElegido.consumido >= procesoElegido.requerido) {
+                procesoElegido.completado = true;
+            }
+
+            // Actualización Visual
+            document.getElementById('totalTimeDisplay').innerText = tiempoTotal;
+            document.getElementById('cpuLabel').innerText = `Ejecutando: ${procesoElegido.nombre}`;
+            
+            logTerminal(`[TICK ${tiempoTotal}] CPU asignada a <span class="target">${procesoElegido.nombre}</span> (Proporción: ${menorProporcion.toFixed(2)})`);
+            
+            renderizarProcesos(procesoElegido.id, tiempoPrometido);
+        }
+
+        function renderizarProcesos(idActivo = null, prometido = 0) {
+            const list = document.getElementById('uiProcessList');
+            list.innerHTML = '';
+
+            procesos.forEach(p => {
+                const porcentaje = (p.consumido / p.requerido) * 100;
+                let mathText = p.completado ? "✅ Completado" : 
+                               (tiempoTotal === 0 ? "En espera" : 
+                               `Ratio = ${p.consumido} / ${prometido.toFixed(1)} = ${p.proporcion.toFixed(2)}`);
+
+                const html = `
+                    <div class="process-item ${p.id === idActivo ? 'active' : ''} ${p.completado ? 'completed' : ''}">
+                        <div class="process-header">
+                            <span class="process-name">${p.nombre} <span style="font-size:0.8rem; color:#6b7280; font-weight:normal;">(${p.consumido}/${p.requerido})</span></span>
+                            <span class="process-math">${mathText}</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-fill" style="width: ${porcentaje}%"></div>
+                        </div>
+                    </div>
+                `;
+                list.innerHTML += html;
+            });
+        }
+
+        function logTerminal(msg) {
+            const term = document.getElementById('terminalLog');
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+            term.innerHTML += `<div><span class="time">[${timeStr}]</span> ${msg}</div>`;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function reiniciar() {
+            if (corriendo) {
+                clearInterval(intervalo);
+                corriendo = false;
+                document.getElementById('btnStart').innerHTML = "▶ Iniciar Planificador";
+                document.getElementById('cpuIcon').classList.remove('processing');
+            }
+            procesos = [];
+            tiempoTotal = 0;
+            document.getElementById('totalTimeDisplay').innerText = '0';
+            document.getElementById('cpuLabel').innerText = 'IDLE (Esperando procesos)';
+            document.getElementById('uiProcessList').innerHTML = '';
+            document.getElementById('terminalLog').innerHTML = '<div>> Sistema reiniciado.</div>';
+        }
+    </script>
+</body>
+</html>
